@@ -1,0 +1,389 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProductType {
+  BOOK
+  MERCH
+}
+
+enum ProductStatus {
+  ANNOUNCEMENT
+  APPLICATIONS_OPEN
+  PRINTING_WAIT
+  PAYMENT
+  SHIPPING
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderStatus {
+  CREATED
+  ACTIVE
+  WAITING_FINAL_PAYMENT
+  WAITING_DELIVERY_PAYMENT
+  READY_TO_SHIP
+  SHIPPED
+  COMPLETED
+  CANCELLED
+  REFUND_REQUESTED
+  REFUND_APPROVED
+  REFUND_COMPLETED
+}
+
+enum PaymentType {
+  PREORDER
+  FINAL
+  DELIVERY
+  REJECTED_FULL_BUYOUT
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryMethod {
+  CDEK
+  MANUAL
+}
+
+enum DeliveryStatus {
+  PENDING
+  PAID
+  CREATED
+  SHIPPED
+  DELIVERED
+  RETURNED
+}
+
+enum MailingStatus {
+  DRAFT
+  SENT
+  FAILED
+}
+
+model User {
+  isAdmin         Boolean  @default(false)
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  passwordHash    String
+  phone           String?
+  telegramEnabled Boolean  @default(false)
+  vkEnabled       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  profile            UserProfile?
+  telegramConnection TelegramConnection?
+  telegramLinkCodes  TelegramLinkCode[]
+  vkConnection       VkConnection?
+  vkLinkCodes        VkLinkCode[]
+  orders             Order[]
+  refundRequests     RefundRequest[]
+  notifications      Notification[]
+  sessions           Session[]
+}
+
+model UserProfile {
+  id                                String          @id @default(cuid())
+  userId                            String          @unique
+  recipientName                     String?
+  country                           String?
+  city                              String?
+  address                           String?
+  postalCode                        String?
+  cdekPvzCode                       String?
+  cdekPvzAddress                    String?
+  cdekPvzCity                       String?
+  preferredDeliveryMethod           DeliveryMethod?
+  needsManualDeliveryContactDefault Boolean         @default(false)
+  createdAt                         DateTime        @default(now())
+  updatedAt                         DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TelegramConnection {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  telegramChatId   String?
+  telegramUsername String?
+  isVerified       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VkConnection {
+  id         String   @id @default(cuid())
+  userId      String   @unique
+  vkUserId    String?
+  vkUsername  String?
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id               String        @id @default(cuid())
+  type             ProductType
+  title            String
+  slug             String        @unique
+  fandom           String?
+  author           String?
+  betaOrTranslator String?
+  pairing          String?
+  rating           String?
+  tags             String?
+  pagesCount       Int?
+  tomesCount       Int?
+  description      String
+  preorderAmount   Int?
+  finalPrice       Int?
+  stock            Int?
+  paymentMode      PaymentMode   @default(PREORDER_SPLIT)
+  minPrintRun      Int?
+  status           ProductStatus
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  releaseId        String?
+  release          Release?      @relation(fields: [releaseId], references: [id])
+
+  images          ProductImage[]
+  orderItems      OrderItem[]
+  analyticsEvents AnalyticsEvent[]
+  telegramMailings TelegramMailing[]
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  imageUrl  String
+  sortOrder Int      @default(0)
+  altText   String?
+  isCover   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  releaseId String?
+  release   Release? @relation(fields: [releaseId], references: [id])
+
+  status OrderStatus @default(CREATED)
+
+  comment   String?
+  adminNote String?
+
+  recipientName  String?
+  recipientPhone String?
+  recipientEmail String?
+
+  country    String?
+  city       String?
+  address    String?
+  postalCode String?
+
+  deliveryMethod             DeliveryMethod?
+  needsManualDeliveryContact Boolean         @default(false)
+  cdekPvzCode                String?
+
+  preorderPaid Boolean @default(false)
+  finalPaid    Boolean @default(false)
+  deliveryPaid Boolean @default(false)
+
+  finalPaymentAmount    Int?
+  deliveryPaymentAmount Int?
+
+  trackNumber String?
+  cdekOrderId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items          OrderItem[]
+  payments       Payment[]
+  delivery       Delivery?
+  refundRequests RefundRequest[]
+  notifications  Notification[]
+}
+
+model OrderItem {
+  id        String      @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int         @default(1)
+  unitPrice Int
+  itemType  ProductType
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String
+  type          PaymentType
+  amount        Int
+  status        PaymentStatus @default(PENDING)
+  provider      String?
+  transactionId String?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Delivery {
+  id                 String         @id @default(cuid())
+  orderId            String         @unique
+  deliveryProvider   String?
+  deliveryPrice      Int?
+  deliveryStatus     DeliveryStatus @default(PENDING)
+  trackNumber        String?
+  cdekPvzCode        String?
+  shipmentExternalId String?
+  comment            String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model RefundRequest {
+  id         String      @id @default(cuid())
+  orderId    String
+  userId     String
+  reason     String?
+  status     OrderStatus
+  reviewedBy String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  orderId   String?
+  channel   String
+  type      String
+  payload   String?
+  sentAt    DateTime?
+  status    String?
+  createdAt DateTime  @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  productId String?
+  eventType String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Release {
+  id       String        @id @default(cuid())
+  products Product[]
+  status   ProductStatus @default(ANNOUNCEMENT)
+
+  title String
+  slug  String @unique
+
+  preorderPrice Int  @default(1500)
+  finalPrice    Int?
+
+  preorderOpen     Boolean @default(true)
+  finalPaymentOpen Boolean @default(false)
+  deliveryOpen     Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  orders Order[]
+  telegramMailings TelegramMailing[]
+}
+
+enum PaymentMode {
+  PREORDER_SPLIT
+  FULL_PAYMENT
+}
+
+model TelegramLinkCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model VkLinkCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model TelegramMailing {
+  id           String        @id @default(cuid())
+  channel      String        @default("TELEGRAM")
+  target       String
+  releaseId    String?
+  productId    String?
+  text         String
+  imageUrl     String?
+  recipients   Int           @default(0)
+  sentCount    Int           @default(0)
+  failedCount  Int           @default(0)
+  status       MailingStatus @default(DRAFT)
+  errorMessage String?
+  createdAt    DateTime      @default(now())
+  sentAt       DateTime?
+
+  release Release? @relation(fields: [releaseId], references: [id], onDelete: SetNull)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
