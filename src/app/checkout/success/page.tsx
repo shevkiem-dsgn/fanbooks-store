@@ -1,11 +1,11 @@
 "use client";
 
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
-import { useEffect } from "react";
 import { useCartStore } from "@/modules/cart/store";
 import { useSearchParams } from "next/navigation";
 
-export default function CheckoutSuccessPage() {
+function CheckoutSuccessContent() {
   const clearCart = useCartStore((state) => state.clearCart);
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
@@ -45,5 +45,13 @@ export default function CheckoutSuccessPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutSuccessContent />
+    </Suspense>
   );
 }
