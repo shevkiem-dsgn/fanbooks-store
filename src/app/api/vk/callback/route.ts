@@ -3,7 +3,6 @@ import { getRequiredEnv } from "@/lib/env";
 
 const VK_CALLBACK_CONFIRMATION_TOKEN =
   process.env.VK_CALLBACK_CONFIRMATION_TOKEN?.trim() || null;
-const VK_CALLBACK_SECRET = getRequiredEnv("VK_CALLBACK_SECRET");
 
 type VkCallbackPayload = {
   type?: string;
@@ -26,6 +25,7 @@ function plainText(body: string, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
+  const vkCallbackSecret = getRequiredEnv("VK_CALLBACK_SECRET");
   const body = (await request.json()) as VkCallbackPayload;
 
   if (!body.type) {
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     return plainText(VK_CALLBACK_CONFIRMATION_TOKEN);
   }
 
-  if (body.secret !== VK_CALLBACK_SECRET) {
+  if (body.secret !== vkCallbackSecret) {
     return plainText("forbidden", 403);
   }
 
